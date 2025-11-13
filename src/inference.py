@@ -7,13 +7,12 @@ from src.parser import log_execution
 class ROWInferencer:
     def __init__(
         self,
-        base_model_name: str = "t-tech/T-lite-it-1.0",
-        # base_model_name: str = "Qwen/Qwen3-1.7B",
+        # base_model_name: str = "t-tech/T-lite-it-1.0",
+        base_model_name: str = "Qwen/Qwen3-1.7B",
         device: str = "cuda",
     ):
         self.tokenizer = AutoTokenizer.from_pretrained(
-            base_model_name,
-            local_files_only=True,
+            base_model_name
         )
         self.model = AutoModelForCausalLM.from_pretrained(
             base_model_name,
@@ -23,9 +22,9 @@ class ROWInferencer:
                 else torch.float16
             ),
             device_map=device,
-            trust_remote_code=True,
-            local_files_only=True,
+            trust_remote_code=True
         )
+
         self.model.eval()
 
     @log_execution
@@ -36,7 +35,7 @@ class ROWInferencer:
         max_new_tokens: int = 1024,
     ):
         messages = [
-            {"role": "system", "content": system_prompt},
+            {"role": "### Роль ###\nТы — ассистент по игре Outer Wilds. Твоя задача — помочь игроку найти точную информацию о локациях, персонажах, механиках и секретах игры, опираясь на внутреннюю базу знаний.", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
 
