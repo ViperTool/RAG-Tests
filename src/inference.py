@@ -55,7 +55,7 @@ class ROWInferencer:
                 **model_inputs,
                 max_new_tokens=max_new_tokens,
                 do_sample=True,
-                temperature=0.1,
+                temperature=0.05,
                 pad_token_id=self.tokenizer.eos_token_id,
             )
 
