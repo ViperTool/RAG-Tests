@@ -15,7 +15,7 @@ WIKI_URL = "https://outer-wilds.fandom.com/ru/wiki/"
 
 # Настройки Retriever-модели
 R_EMBEDDING_MODEL_NAME = "ai-forever/FRIDA"
-# R_EMBEDDING_MODEL_NAME = "C:\\Users\\thererealareyou\\PycharmProjects\\LLMPhilosophy\\frida-outerwilds-manual-final"
+# R_EMBEDDING_MODEL_NAME = "C:\\Users\\thererealareyou\\PycharmProjects\\LLMPhilosophy\\frida-outerwilds-manual-final" # Тест файн-тьюна модели
 R_MAX_LENGTH = 512
 R_BATCH_SIZE = 16
 R_POOLING_METHOD = "cls"
