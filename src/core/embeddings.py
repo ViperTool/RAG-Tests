@@ -8,7 +8,7 @@ from transformers import AutoTokenizer, T5EncoderModel
 from typing import List, Union
 
 
-class T5EmbeddingService:
+class EmbeddingService:
     def __init__(self):
         self.device = config.R_DEVICE
         self.tokenizer = None

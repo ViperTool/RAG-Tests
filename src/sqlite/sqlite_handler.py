@@ -423,13 +423,13 @@ def clean_text(content: str) -> str:
 
 def get_title_and_content_of_page(page: str) -> Tuple[str, str]:
     """
-        Получает заголовок и содержимое страницы
+    Получает заголовок и содержимое страницы
 
-        Args:
-            page (str): Страница в сыром виде.
+    Args:
+        page (str): Страница в сыром виде.
 
-        Returns:
-            Tuple[str, str]: Заголовок и содержимое страницы соответственно.
+    Returns:
+        Tuple[str, str]: Заголовок и содержимое страницы соответственно.
         """
     title = page[page.find("Заголовок: ")+len("Заголовок: "):page.find('\n')]
     content = page[page.find("Содержимое:\n")+len("Содержимое:\n"):]

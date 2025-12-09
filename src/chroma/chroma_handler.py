@@ -5,7 +5,7 @@ from chromadb import Documents, EmbeddingFunction, Embeddings
 from typing import List
 from tqdm import tqdm
 
-from src.core.embeddings import T5EmbeddingService
+from src.core.embeddings import EmbeddingService
 from src.sqlite.sqlite_handler import get_all_chunks
 
 
@@ -15,7 +15,7 @@ class ChromaEmbeddingAdapter(EmbeddingFunction):
     ChromaDB ожидает класс с методом __call__, принимающим список текстов.
     """
     def __init__(self):
-        self.service = T5EmbeddingService()
+        self.service = EmbeddingService()
         self.service.load()
 
     def __call__(self, input: Documents) -> Embeddings:
