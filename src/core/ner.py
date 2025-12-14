@@ -1,7 +1,8 @@
 import spacy
 from spacy.matcher import Matcher
 
-import config
+from src.utils import config
+
 
 class NERService:
     def __init__(self):

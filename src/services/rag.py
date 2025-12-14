@@ -1,4 +1,4 @@
-import config
+from src.utils import config
 
 import numpy as np
 from typing import List
@@ -9,7 +9,7 @@ import re
 from src.core.embeddings import EmbeddingService
 from src.core.generators import GeneratorService
 from src.core.ner import NERService
-from src.chroma.chroma_handler import get_chroma_client
+from src.chroma.chroma_handler import ChromaManager
 
 
 class RAGEngine:
@@ -26,7 +26,8 @@ class RAGEngine:
             self.generator_service.load() if not config.G_USE_REMOTE_MODEL else print(f"Запрос будет выполняться сторонним сервисом моделью {config.G_REMOTE_MODEL_NAME}.")
 
             print("Загрузка индекса BM25...")
-            self.client = get_chroma_client()
+            self.chroma_manager = ChromaManager()
+            self.client = self.chroma_manager.client
             self.collection = self.client.get_collection(name=collection_name)
             data = self.collection.get(include=["documents", "metadatas", "embeddings"])
             self.corpus = data["documents"]
@@ -47,7 +48,7 @@ class RAGEngine:
     def preprocess_text(text: str) -> List[str]:
         return re.findall(r"\w+", text.lower())
 
-    def search(self, query: str, n_bm25: int = 5, n_vector: int = 20) -> str:
+    def search(self, query: str, n_bm25: int = 5, n_vector: int = 5) -> str:
         """
         Главный метод: находит релевантный контекст для вопроса.
         Возвращает строку с контекстом.
@@ -100,7 +101,7 @@ class RAGEngine:
     def answer(self, query: str, context: str):
         return self.generator_service.generate_response(query, context)
 
-    def apply_kernel_method(self, retrieved_indices: List[int], sigma=4.0, threshold=0.13) -> List[int]:
+    def apply_kernel_method(self, retrieved_indices: List[int], sigma=4.0, threshold=0.3) -> List[int]:
         """
         Расширение контекста, основанное на гауссовском фильтре.
         """

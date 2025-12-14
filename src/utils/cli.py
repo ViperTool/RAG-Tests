@@ -1,26 +1,28 @@
 import argparse
 import sys
 
+from src.utils.parser import WikiScraper
+from src.chroma.chroma_handler import ChromaManager
+from main import main as run_chat
+
+
 def cmd_parse(args):
     """Команда: Спарсить данные с вики"""
-    from src.utils.parser import run_parsing_pipeline
-
-    run_parsing_pipeline()
+    wiki_parser = WikiScraper()
+    wiki_parser.run_scraping_pipeline()
 
 
 def cmd_index(args):
     """Команда: Создать векторный индекс"""
-    from src.chroma.chroma_handler import run_chroma_pipeline, delete_collection
-
+    chroma_manager = ChromaManager()
     if args.clean:
-        delete_collection(args.collection)
+        chroma_manager.delete_collection(args.collection)
 
-    run_chroma_pipeline(collection_name=args.collection)
+    chroma_manager.run_chroma_pipeline(collection_name=args.collection)
 
 
 def cmd_chat(args):
     """Команда: Запустить чат в консоли"""
-    from main import main as run_chat
     run_chat()
 
 

@@ -1,4 +1,4 @@
-import config
+from src.utils import config
 
 from src.services.rag import RAGEngine
 
@@ -19,7 +19,6 @@ def main():
                                               context=context)
 
         print(f"\nОтвет:\n{result}")
-        break
 
 if __name__ == "__main__":
     main()

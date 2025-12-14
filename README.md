@@ -16,32 +16,28 @@
 ### Установка и запуск
 
 #### 1. Клонирование и подготовка
+```
 git clone https://github.com/thererealareyou/RAG-Tests.git
-
 cd RAG-tests
-
-Создание и активация виртуального окружения (Windows)
-
 python -m venv .venv
 .\\.venv\Scripts\activate
-
-Установка зависимостей
-
 pip install -r requirements.txt
+```
 
 #### 2. Сбор данных (ETL)
 Сбор информации с [Outer Wilds Wiki](https://outer-wilds.fandom.com/ru/wiki/) и сохранение в SQLite:
-
+```
 python cli.py parse
-
+```
 #### 3. Индексация
 Создание векторного индекса в ChromaDB. Используйте флаг `--clean` для полной пересборки базы.
-
+```
 python cli.py index --clean
-
+```
 #### 4. Запуск чата
+```
 python cli.py chat
-
+```
 ---
 
 ### Конфигурация

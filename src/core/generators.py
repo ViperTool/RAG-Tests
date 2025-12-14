@@ -1,14 +1,16 @@
-import config
+from src.utils import config
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from dotenv import load_dotenv
 import torch
 import requests
 import gc
+import os
 
 from src.utils.wrappers import log_execution
 
 def form_prompt(query: str, context: str, system_prompt: str = str(config.G_SYSTEM_PROMPT)) -> str:
-    return f"{system_prompt}\n\nКонтекст:\n\n{context}\n\nВопрос:\n\n{query}\n\nОтвет:"
+    return f"Роль: {system_prompt}\n\nКонтекст:\n\n{context}\n\nВопрос:\n\n{query}\n\nОтвет:"
 
 
 class GeneratorService:
@@ -16,6 +18,7 @@ class GeneratorService:
         self.device = config.G_DEVICE
         self.tokenizer = None
         self.model = None
+        load_dotenv()
 
     def load(self, model_name: str = config.G_MODEL_NAME):
         """
@@ -96,7 +99,7 @@ class GeneratorService:
     def ask_api(query: str, context: str) -> str:
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers = {
-            "Authorization": "Bearer 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",
+            "Authorization": f"Bearer {os.getenv('G_REMOTE_MODEL_API')}",
             "Content-Type": "application/json"
         }
         payload = {
