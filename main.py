@@ -1,12 +1,9 @@
-import config
+from src.utils import config
 
 from src.services.rag import RAGEngine
-from src.core.inference import GeneratorInferencer
-
 
 def main():
     rag = RAGEngine(collection_name=config.COLLECTION_NAME)
-    inferencer = GeneratorInferencer()
 
     print("\n=== Система запущена. ===")
 
@@ -15,11 +12,13 @@ def main():
         context = rag.search(query)
         print(context)
 
-        result = inferencer.generate_response(
-            query=query, context=context
-        )
-        print(f"\nОтвет:\n{result['response']}")
+        result = rag.generator_service.ask_api(query=query,
+                                             context=context) \
+            if config.G_USE_REMOTE_MODEL \
+            else rag.generator_service.generate_response(query=query,
+                                              context=context)
 
+        print(f"\nОтвет:\n{result}")
 
 if __name__ == "__main__":
     main()

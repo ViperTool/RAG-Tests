@@ -1,5 +1,3 @@
-import config
-
 import numpy as np
 import gc
 import torch
@@ -7,8 +5,11 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer, T5EncoderModel
 from typing import List, Union
 
+from src.utils import config
+from src.utils import exceptions
 
-class T5EmbeddingService:
+
+class EmbeddingService:
     def __init__(self):
         self.device = config.R_DEVICE
         self.tokenizer = None
