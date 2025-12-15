@@ -15,6 +15,11 @@ COLLECTION_NAME = "wiki_chunks_overlap"
 
 WIKI_URL = "https://outer-wilds.fandom.com/ru/wiki/"
 
+# Настройки чанкирования
+# Фиксированное с перекрытием
+C_BASIC_SIZE = 512
+C_BASIC_OVERLAP = 200
+
 # Настройки Retriever-модели
 R_EMBEDDING_MODEL_NAME = "ai-forever/FRIDA"
 # R_EMBEDDING_MODEL_NAME = BASE_DIR / "frida-outerwilds-manual-final"

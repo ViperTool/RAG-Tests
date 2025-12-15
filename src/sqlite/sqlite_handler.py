@@ -317,8 +317,9 @@ class SQLiteManager:
 
     # --- Методы чанкирования ---
     @staticmethod
-    def chunk_text_by_length_with_overlap(title: str, content: str, chunk_size: int = 512, overlap: int = 100) -> List[
-        str]:
+    def chunk_text_by_length_with_overlap(title: str, content: str,
+                                          chunk_size: int = config.C_BASIC_SIZE,
+                                          overlap: int = config.C_BASIC_OVERLAP) -> List[str]:
         """
         Разбивает текст на чанки фиксированной длины с перекрытием.
         """
@@ -368,14 +369,27 @@ class SQLiteManager:
 
     # --- Основной пайплайн ---
 
-    def run_processing_pipeline(self) -> None:
+    def run_processing_pipeline(self, strategy=None) -> None:
         """
         Запускает процесс: чтение страниц -> парсинг -> нарезка на чанки -> сохранение чанков.
+        Args:
+            strategy (str): Выбор стратегии чанкирования
+                ("fixed" - фиксированный чанкинг с перекрытием,
+                "sliding" - плавающее окно для использования с гауссовским фильтром)
         """
         logger.info("ЗАПУСК: Пайплайн обработки SQLite.")
 
         self.clear_database()
         self.create_schema()
+
+        match strategy:
+            case "fixed":
+                chunking_callable = self.chunk_text_by_length_with_overlap
+            case "sliding":
+                chunking_callable = self.chunk_text_by_sentences
+            case _:
+                logger.error(f"Ошибка: некорректная стратегия: {strategy}")
+                raise exceptions.TextProcessingError(f"Некорректная стратегия: {strategy}")
 
         pages = self.get_all_pages()
         if not pages:
@@ -389,7 +403,7 @@ class SQLiteManager:
             title, body = self.extract_title_and_content(raw_text)
             clean_body = self.clean_text(body)
 
-            chunks = self.chunk_text_by_length_with_overlap(title, clean_body)
+            chunks = chunking_callable(title, clean_body)
 
             self.save_chunks(page_id, chunks)
 
