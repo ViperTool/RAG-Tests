@@ -1,13 +1,17 @@
 import numpy as np
 import gc
+import logging.config
 import torch
 import torch.nn.functional as F
+
 from transformers import AutoTokenizer, T5EncoderModel
 from typing import List, Union
 
-from src.utils import config
 from src.utils import exceptions
+import config
 
+logging.config.dictConfig(config.LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
 
 class EmbeddingService:
     def __init__(self):
@@ -19,12 +23,27 @@ class EmbeddingService:
         """
         Загрузка модели
         """
-        print(f"Загрузка модели {model_name} на {self.device.upper()}...")
+        logger.info(f"Загрузка эмбеддинговой модели {model_name} на {self.device.upper()}...")
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = T5EncoderModel.from_pretrained(model_name)
-        self.model.eval()
-        self.model.to(self.device)
+        if self.model is not None:
+            logger.info("Эмбеддинговая модель уже загружена.")
+
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.model = T5EncoderModel.from_pretrained(model_name)
+            self.model.eval()
+            self.model.to(self.device)
+            logger.info("Эмбеддинговая модель успешно загружена.")
+        except OSError as e:
+            logger.critical(f"Файлы эмбеддинговой модели {model_name} не найдены: {e}")
+            raise exceptions.EmbeddingModelLoadingError(f"Ошибка файлов эмбеддинговой модели: {e}") from e
+        except torch.cuda.OutOfMemoryError as e:
+            logger.critical(f"Недостаточно VRAM для загрузки эмбеддинговой модели {model_name}.")
+            self.unload()
+            raise exceptions.EmbeddingModelLoadingError("Недостаточно VRAM для загрузки эмбеддинговой модели") from e
+        except Exception as e:
+            logger.critical(f"Ошибка инициализации EmbeddingService: {e}")
+            raise exceptions.EmbeddingModelLoadingError(f"Неизвестная ошибка инициализации EmbeddingService: {e}") from e
 
     def unload(self):
         """
@@ -32,10 +51,19 @@ class EmbeddingService:
         """
         print("Выгрузка модели эмбеддингов из VRAM...")
 
-        del self.model
-        del self.tokenizer
-        gc.collect()
-        torch.cuda.empty_cache()
+        logger.info("Выгрузка эмбеддинговой модели...")
+        try:
+            if self.model: del self.model
+            if self.tokenizer: del self.tokenizer
+        except Exception as e:
+            logger.warning(f"Ошибка при удалении объектов эмбеддинговой модели: {e}")
+        finally:
+            self.model = None
+            self.tokenizer = None
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logger.info("Память очищена.")
 
     @staticmethod
     def pool(last_hidden_state: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
@@ -61,28 +89,36 @@ class EmbeddingService:
 
         all_embeddings = []
 
-        for i in range(0, len(texts), config.R_BATCH_SIZE):
-            batch = texts[i: i + config.R_BATCH_SIZE]
+        try:
+            for i in range(0, len(texts), config.R_BATCH_SIZE):
+                batch = texts[i: i + config.R_BATCH_SIZE]
 
-            encoded_input = self.tokenizer(
-                batch,
-                max_length=config.R_MAX_LENGTH,
-                padding=True,
-                truncation=True,
-                return_tensors='pt'
-            ).to(self.device)
+                encoded_input = self.tokenizer(
+                    batch,
+                    max_length=config.R_MAX_LENGTH,
+                    padding=True,
+                    truncation=True,
+                    return_tensors='pt'
+                ).to(self.device)
 
-            with torch.no_grad():
-                model_output = self.model(**encoded_input)
+                with torch.no_grad():
+                    model_output = self.model(**encoded_input)
 
-            pooled_embeds = self.pool(
-                model_output.last_hidden_state,
-                encoded_input['attention_mask']
-            )
+                pooled_embeds = self.pool(
+                    model_output.last_hidden_state,
+                    encoded_input['attention_mask']
+                )
 
-            if normalize:
-                pooled_embeds = F.normalize(pooled_embeds, p=2, dim=1)
+                if normalize:
+                    pooled_embeds = F.normalize(pooled_embeds, p=2, dim=1)
 
-            all_embeddings.append(pooled_embeds.cpu().numpy())
+                all_embeddings.append(pooled_embeds.cpu().numpy())
 
-        return np.vstack(all_embeddings)
+            return np.vstack(all_embeddings)
+        except torch.cuda.OutOfMemoryError as e:
+            logger.error("Недостаточно памяти при кодировании текста.")
+            torch.cuda.empty_cache()
+            raise exceptions.EncodeError("Не хватило памяти для батча") from e
+        except Exception as e:
+            logger.error(f"Ошибка кодирования: {e}")
+            raise exceptions.EncodeError(f"Ошибка при создании эмбеддингов: {e}") from e

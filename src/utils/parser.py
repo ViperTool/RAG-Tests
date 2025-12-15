@@ -1,44 +1,86 @@
 import time
 import re
 import urllib.parse
-import requests
-import logging, logging.config
-from bs4 import BeautifulSoup
+import logging.config
 from typing import List, Optional
+
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+
+from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from src.sqlite.sqlite_handler import SQLiteManager
-from src.utils import config, exceptions
+from src.utils import exceptions
+import config
 
 logging.config.dictConfig(config.LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
 
+
 class WikiScraper:
     def __init__(self, base_url: str = str(config.WIKI_URL)):
+        logger.info("Инициализация экземпляра класса WikiScraper")
         self.base_url = base_url
-        self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
-        })
+        self.driver = self._init_driver()
+
+    @staticmethod
+    def _init_driver():
+        """Настройка и запуск Chrome."""
+        logger.info("Запуск браузера Selenium...")
+        chrome_options = Options()
+
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+
+        chrome_options.add_argument(
+            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+        chrome_options.page_load_strategy = 'eager'
+
+        try:
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+
+            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            return driver
+        except Exception as e:
+            logger.critical(f"Не удалось запустить Selenium: {e}")
+            raise exceptions.NetworkError("Ошибка инициализации драйвера") from e
+
+    def close(self):
+        """Закрывает браузер и освобождает ресурсы."""
+        if self.driver:
+            logger.info("Закрытие браузера...")
+            self.driver.quit()
 
     def get_soup(self, url: str) -> Optional[BeautifulSoup]:
         """
-        Скачивает страницу и возвращает объект BeautifulSoup с повторными попытками.
+        Загружает страницу через Selenium и возвращает BeautifulSoup.
         """
         retries = 3
         for attempt in range(retries):
             try:
-                response = self.session.get(url, timeout=10)
-                if response.status_code == 429:
-                    logger.error(f"Ошибка 429 {url}. Ожидаем.")
-                    time.sleep(5)
-                    continue
-                response.raise_for_status()
-                return BeautifulSoup(response.content, "html.parser")
-            except requests.RequestException as e:
-                logger.error(f"Ошибка при загрузке {url} (попытка {attempt + 1}): {e}")
-                time.sleep(2)
-        logger.critical(f"Сбой загрузки {url} после {retries} попыток.")
+                logger.debug(f"Переход на {url}...")
+                self.driver.get(url)
+
+                time.sleep(3)
+
+                html = self.driver.page_source
+                return BeautifulSoup(html, "html.parser")
+
+            except Exception as e:
+                logger.warning(f"Ошибка Selenium при загрузке {url} (попытка {attempt + 1}): {e}")
+                time.sleep(5)
+
+        logger.error(f"Сбой загрузки {url} после {retries} попыток.")
         raise exceptions.NetworkError(f"Сбой загрузки: {url}")
 
     def get_all_page_links(self) -> List[str]:
@@ -49,7 +91,8 @@ class WikiScraper:
         urls = []
         current_url = start_url
 
-        logger.info(f"Начинаем сбор ссылок на страницы")
+        logger.info(f"Начинаем сбор ссылок (стартовая: {start_url})")
+
         while current_url:
             try:
                 soup = self.get_soup(current_url)
@@ -64,6 +107,8 @@ class WikiScraper:
                         if href:
                             full_url = urllib.parse.urljoin(self.base_url, href)
                             urls.append(full_url)
+                else:
+                    logger.warning(f"Не найден контейнер mw-allpages-body на {current_url}")
 
                 nav = soup.find('div', class_='mw-allpages-nav')
                 next_link = None
@@ -78,8 +123,9 @@ class WikiScraper:
                     logger.info(f"Переход к следующей странице списка: {current_url}")
                 else:
                     current_url = None
+
             except exceptions.NetworkError as e:
-                logger.error(f"Прерываю парсинг страниц из-за ошибки сети. {e}")
+                logger.error(f"Прерываю сбор ссылок: {e}")
                 break
 
         unique_urls = list(set(urls))
@@ -87,12 +133,6 @@ class WikiScraper:
         return unique_urls
 
     def parse_page(self, url: str) -> Optional[str]:
-        """
-        Парсинг страницы вики, возвращает контент страницы.
-
-        Args:
-             url (str): URL страницы.
-        """
         try:
             soup = self.get_soup(url)
             if not soup:
@@ -103,74 +143,67 @@ class WikiScraper:
 
             content_div = soup.find('div', class_='mw-content-ltr')
             if not content_div:
+                logger.warning(f"Контент не найден: {url}")
                 return None
 
             raw_text = content_div.get_text(separator=' ', strip=True)
-
             cleaned_text = self.clean_text(raw_text)
 
             return f"{title}\n\n{cleaned_text}"
         except Exception as e:
-            logger.critical(f"Ошибка при парсинге страницы {url}: {e}")
-            raise exceptions.ParsingError(f"Ошибка при парсинге страницы {url}: {e}")
+            logger.error(f"Ошибка при парсинге {url}: {e}")
+            raise exceptions.ParsingError(f"Ошибка парсинга: {url}") from e
 
     @staticmethod
     def clean_text(text: str) -> str:
-        """
-        Специфичная для Outer Wilds очистка текста.
-        """
         trash_phrases = [
             '(Издания для ПК, консолей, консолей старого поколения и мобильных устройств)',
             'ВНИМАНИЕ, СПОЙЛЕРЫ : Статья содержит детали сюжета игры Outer Wilds',
             'View or edit this template'
         ]
-
         for phrase in trash_phrases:
             text = text.replace(phrase, '')
-
         text = re.sub(r'\[.*?\]', '', text)
         text = re.sub(r'\s+', ' ', text)
-
         return text.strip()
 
-
     def run_scraping_pipeline(self):
-        """
-        Парсит выбранную вики и сохраняет её в базу данных SQLite
-        """
         logger.info("ЗАПУСК: Пайплайн скрапера вики.")
-
         db_manager = SQLiteManager()
-        db_manager.create_schema()
-        sleep_time = 5
 
         try:
+            db_manager.create_schema()
+
             links = self.get_all_page_links()
-        except exceptions.NetworkError as e:
-            logger.critical(f"Не удалось собрать ссылки: {e}")
-            return
 
-        logger.info(f"Начинаем загрузку {len(links)} страниц...")
+            if not links:
+                logger.warning("Ссылок не найдено. Проверьте адрес вики.")
+                return
 
-        for url in tqdm(links, desc="Downloading pages"):
-            try:
-                content = self.parse_page(url)
+            logger.info(f"Начинаем загрузку {len(links)} страниц...")
 
-                if content:
-                    db_manager.save_or_update_page_by_url(url, content)
+            for url in tqdm(links, desc="Скачивание страниц: "):
+                try:
+                    print(url)
+                    content = self.parse_page(url)
+                    if content:
+                        db_manager.save_or_update_page_by_url(url, content)
 
-                time.sleep(sleep_time)
+                    time.sleep(2)
 
-            except exceptions.NetworkError:
-                logger.error(f"Пропуск {url} из-за ошибки сети")
-                continue
-            except exceptions.ParsingError:
-                logger.error(f"Пропуск {url} из-за ошибки парсинга")
-                continue
-            except Exception as e:
-                logger.critical(f"Непредвиденная ошибка на {url}: {e}")
+                except exceptions.NetworkError:
+                    continue
+                except exceptions.ParsingError:
+                    continue
+                except Exception as e:
+                    logger.error(f"Непредвиденная ошибка на {url}: {e}")
 
-        logger.info("КОНЕЦ: Пайплайн скрапера вики.")
+        except Exception as e:
+            logger.critical(f"Фатальная ошибка пайплайна: {e}")
+        finally:
+            self.close()
+            logger.info("КОНЕЦ: Пайплайн завершен.")
+
 
 if __name__ == "__main__":
     wiki_scraper = WikiScraper()

@@ -1,11 +1,12 @@
 import sqlite3
 import os
 import re
-import logging, logging.config
+import logging.config
 from tqdm import tqdm
 from typing import List, Tuple, Optional
 
-from src.utils import config, exceptions
+from src.utils import exceptions
+import config
 
 logging.config.dictConfig(config.LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ class SQLiteManager:
             page_table_name (str): Название таблицы со страницами.
             chunk_table_name (str): Название таблицы с чанками.
         """
+        logger.info("Инициализация экземпляра класса SQLiteManager")
         self.db_path = str(db_path)
         self.page_table_name = str(page_table_name)
         self.chunk_table_name = str(chunk_table_name)

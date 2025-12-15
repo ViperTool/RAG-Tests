@@ -1,4 +1,4 @@
-from src.utils import config
+import config
 
 from src.services.rag import RAGEngine
 

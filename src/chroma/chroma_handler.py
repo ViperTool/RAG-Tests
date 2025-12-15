@@ -1,10 +1,11 @@
 import chromadb
-import logging, logging.config
+import logging.config
 from chromadb import Documents, EmbeddingFunction, Embeddings, errors
 from typing import List, Tuple, Optional
 from tqdm import tqdm
 
-from src.utils import config, exceptions
+from src.utils import exceptions
+import config
 from src.core.embeddings import EmbeddingService
 from src.sqlite.sqlite_handler import SQLiteManager
 
@@ -17,6 +18,7 @@ class ChromaEmbeddingAdapter(EmbeddingFunction):
     ChromaDB ожидает класс с методом __call__, принимающим список текстов.
     """
     def __init__(self):
+
         try:
             self.service = EmbeddingService()
             self.service.load()
@@ -47,6 +49,7 @@ class ChromaManager:
             db_path (str): Путь к файлу/директории ChromaDB.
             default_collection_name (str): Имя коллекции по умолчанию.
         """
+        logger.info("Инициализация экземпляра класса ChromaManager")
         self.db_path = str(db_path)
         self.default_collection_name = default_collection_name
         try:
@@ -136,13 +139,13 @@ class ChromaManager:
         """
         Удаляет коллекцию по имени.
         """
-        a = str(input(f"Вы уверены, что хотите удалить коллекцию {collection_name}?"))
+        a = str(input(f"Вы уверены, что хотите удалить коллекцию {collection_name}? Для подтверждения напишите Y или y\n"))
         if a.lower() == "y":
             try:
                 self.client.delete_collection(collection_name)
                 logger.info(f"Коллекция '{collection_name}' удалена.")
             except (ValueError, chromadb.errors.NotFoundError):
-                logger.error(f"Коллекция '{collection_name}' не найдена или уже удалена.")
+                logger.warning(f"Коллекция '{collection_name}' не найдена или уже удалена.")
 
     # --- Основной пайплайн ---
 

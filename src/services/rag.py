@@ -1,33 +1,40 @@
-from src.utils import config
+from src.utils import exceptions
+import config
 
 import numpy as np
+import re
+import logging.config
 from typing import List
 from rank_bm25 import BM25Okapi
 from scipy.ndimage import gaussian_filter
-import re
 
 from src.core.embeddings import EmbeddingService
 from src.core.generators import GeneratorService
 from src.core.ner import NERService
 from src.chroma.chroma_handler import ChromaManager
 
+logging.config.dictConfig(config.LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
 
 class RAGEngine:
     def __init__(self, collection_name: str):
         try:
-            print("Инициализация RAG-системы...")
+            logger.info("Инициализация RAG-системы...")
             self.embedding_service = EmbeddingService()
 
-            print(f"Параметр выгрузки эмбеддинг-модели после генерации (R_UNLOAD_ON_GENERATION) установлен {config.R_UNLOAD_ON_GENERATION}: ", end='')
-            self.embedding_service.load() if not config.R_UNLOAD_ON_GENERATION else print(f"Модель будет загружена по необходимости.")
+            logger.info(f"Параметр выгрузки эмбеддинг-модели после генерации (R_UNLOAD_ON_GENERATION) установлен {config.R_UNLOAD_ON_GENERATION}")
+            self.embedding_service.load() if not config.R_UNLOAD_ON_GENERATION else logger.info(f"Модель будет загружена по необходимости.")
 
-            print(f"Параметр загрузки удалённой модели-генератора (G_USE_REMOTE_MODEL) установлен {config.G_USE_REMOTE_MODEL}: ", end='')
+            logger.info(f"Параметр загрузки удалённой модели-генератора (G_USE_REMOTE_MODEL) установлен {config.G_USE_REMOTE_MODEL}")
             self.generator_service = GeneratorService()
-            self.generator_service.load() if not config.G_USE_REMOTE_MODEL else print(f"Запрос будет выполняться сторонним сервисом моделью {config.G_REMOTE_MODEL_NAME}.")
+            self.generator_service.load() if not config.G_USE_REMOTE_MODEL else logger.info(f"Запрос будет выполняться сторонним сервисом моделью {config.G_REMOTE_MODEL_NAME}.")
 
-            print("Загрузка индекса BM25...")
+            logger.info("Загрузка индекса BM25...")
             self.chroma_manager = ChromaManager()
             self.client = self.chroma_manager.client
+            collections = self.chroma_manager.client.list_collections()
+            for collection in collections:
+                logger.info(collection.name)
             self.collection = self.client.get_collection(name=collection_name)
             data = self.collection.get(include=["documents", "metadatas", "embeddings"])
             self.corpus = data["documents"]
@@ -35,14 +42,36 @@ class RAGEngine:
             self.doc_ids = data["ids"]
             tokenized_corpus = [self.preprocess_text(doc) for doc in self.corpus]
             self.bm25 = BM25Okapi(tokenized_corpus)
+            self.pages_map = self._build_pages_map()
 
-            print("Загрузка NER-модели...")
+            logger.info("Загрузка NER-модели...")
             self.ner_service = NERService()
 
-
-            print("RAG-система готова.")
+            logger.info("RAG-система готова.")
         except Exception as e:
-            print(f"Ошибка при инициализации RAG-системы: {e}")
+            logger.error(f"Ошибка при инициализации RAG-системы: {e}")
+            raise exceptions.InitializationError(f"Неизвестная ошибка при инициализации RAG-системы: {e}") from e
+
+    def _build_pages_map(self) -> dict:
+        """
+        Строит индекс {page_id: [(chunk_order, global_index), ...]} один раз при запуске.
+        """
+        logger.debug("Построение карты страниц для контекстного фильтра...")
+        mapping = {}
+        for idx, meta in enumerate(self.metadatas):
+            try:
+                pid = meta.get('page_id')
+                order = meta.get('chunk_order')
+
+                if pid is None or order is None:
+                    continue
+
+                if pid not in mapping:
+                    mapping[pid] = []
+                mapping[pid].append((int(order), idx))
+            except (ValueError, TypeError):
+                continue
+        return mapping
 
     @staticmethod
     def preprocess_text(text: str) -> List[str]:
@@ -68,7 +97,7 @@ class RAGEngine:
         bm25_scores_full = self.bm25.get_scores(tokenized_query)
         top_bm25_indices = np.argsort(bm25_scores_full)[::-1][:n_bm25].tolist()
 
-        print(f"Результаты лексического поиска: {top_bm25_indices}")
+        logger.info(f"Результаты лексического поиска: {top_bm25_indices}")
 
         if self.embedding_service.model is None:
             self.embedding_service.load()
@@ -91,7 +120,7 @@ class RAGEngine:
             except ValueError:
                 continue
 
-        print(f"Результаты векторного поиска: {vector_indices}")
+        logger.info(f"Результаты векторного поиска: {vector_indices}")
 
         all_candidate_indices = list(set(top_bm25_indices) | set(vector_indices))
         final_indices = self.apply_kernel_method(all_candidate_indices)
@@ -106,24 +135,17 @@ class RAGEngine:
         Расширение контекста, основанное на гауссовском фильтре.
         """
 
-        print(f"Начальные чанки: {retrieved_indices}")
-        print(f"Начальные чанки (отсортированные): {sorted(retrieved_indices)}")
+        logger.info(f"Начальные чанки: {retrieved_indices}")
+        logger.info(f"Начальные чанки (отсортированные): {sorted(retrieved_indices)}")
 
-        pages_map = {}
+        pages_map = self.pages_map
 
         relevant_page_ids = set()
+
         for idx in retrieved_indices:
             meta = self.metadatas[idx]
             pid = meta['page_id']
             relevant_page_ids.add(pid)
-
-        # В идеале карту страниц надо построить один раз в __init__, если корпус не меняется
-        for idx, meta in enumerate(self.metadatas):
-            pid = meta['page_id']
-            if pid in relevant_page_ids:
-                if pid not in pages_map:
-                    pages_map[pid] = []
-                pages_map[pid].append((int(meta['chunk_order']), idx))
 
         final_indices = retrieved_indices
 
@@ -150,6 +172,6 @@ class RAGEngine:
 
         total_indices = sorted(list(set(final_indices)))
 
-        print(f"Итоговые чанки: {total_indices}")
+        logger.info(f"Итоговые чанки: {total_indices}")
 
         return total_indices

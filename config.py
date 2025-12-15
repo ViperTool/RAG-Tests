@@ -3,12 +3,14 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
 
+
 # Настройки данных
 DATA_DIR = BASE_DIR / "data"
 SQLITE_DB_PATH = DATA_DIR / "wiki_content.db"
 SQLITE_PAGE_TABLE_NAME = "wiki_pages"
 SQLITE_CHUNKS_TABLE_NAME = "wiki_pages_chunks_overlap"
 CHROMA_DB_PATH = DATA_DIR
+LOGS_DIR = BASE_DIR / "logs"
 COLLECTION_NAME = "wiki_chunks_overlap"
 
 WIKI_URL = "https://outer-wilds.fandom.com/ru/wiki/"
@@ -56,7 +58,7 @@ LOGGING_CONFIG = {
             'class': 'logging.handlers.RotatingFileHandler',
             'level': 'DEBUG',
             'formatter': 'standard',
-            'filename': 'pipeline.log',
+            'filename': os.path.join(LOGS_DIR, 'app.log'),
             'maxBytes': 10*1024*1024, # 10MB
             'backupCount': 5,
             'encoding': 'utf8'
@@ -69,3 +71,4 @@ LOGGING_CONFIG = {
 }
 
 os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
