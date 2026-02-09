@@ -14,9 +14,9 @@ from tqdm import tqdm
 
 from src.sqlite.sqlite_handler import SQLiteManager
 from src.utils import exceptions
+from src.utils.logger import init_logging
 import config
 
-logging.config.dictConfig(config.LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
 
 
@@ -55,13 +55,13 @@ class WikiScraper:
             logger.critical(f"Не удалось запустить Selenium: {e}")
             raise exceptions.NetworkError("Ошибка инициализации драйвера") from e
 
-    def close(self):
+    def _close(self):
         """Закрывает браузер и освобождает ресурсы."""
         if self.driver:
             logger.info("Закрытие браузера...")
             self.driver.quit()
 
-    def get_soup(self, url: str) -> Optional[BeautifulSoup]:
+    def _get_soup(self, url: str) -> Optional[BeautifulSoup]:
         """
         Загружает страницу через Selenium и возвращает BeautifulSoup.
         """
@@ -83,7 +83,7 @@ class WikiScraper:
         logger.error(f"Сбой загрузки {url} после {retries} попыток.")
         raise exceptions.NetworkError(f"Сбой загрузки: {url}")
 
-    def get_all_page_links(self) -> List[str]:
+    def _get_all_page_links(self) -> List[str]:
         """
         Собирает ссылки на ВСЕ страницы вики через служебную страницу.
         """
@@ -95,7 +95,7 @@ class WikiScraper:
 
         while current_url:
             try:
-                soup = self.get_soup(current_url)
+                soup = self._get_soup(current_url)
                 if not soup:
                     break
 
@@ -132,9 +132,9 @@ class WikiScraper:
         logger.info(f"Всего найдено ссылок: {len(unique_urls)}")
         return unique_urls
 
-    def parse_page(self, url: str) -> Optional[str]:
+    def _parse_page(self, url: str) -> Optional[str]:
         try:
-            soup = self.get_soup(url)
+            soup = self._get_soup(url)
             if not soup:
                 return None
 
@@ -147,7 +147,7 @@ class WikiScraper:
                 return None
 
             raw_text = content_div.get_text(separator=' ', strip=True)
-            cleaned_text = self.clean_text(raw_text)
+            cleaned_text = self._clean_text(raw_text)
 
             return f"{title}\n\n{cleaned_text}"
         except Exception as e:
@@ -155,7 +155,7 @@ class WikiScraper:
             raise exceptions.ParsingError(f"Ошибка парсинга: {url}") from e
 
     @staticmethod
-    def clean_text(text: str) -> str:
+    def _clean_text(text: str) -> str:
         trash_phrases = [
             '(Издания для ПК, консолей, консолей старого поколения и мобильных устройств)',
             'ВНИМАНИЕ, СПОЙЛЕРЫ : Статья содержит детали сюжета игры Outer Wilds',
@@ -174,7 +174,7 @@ class WikiScraper:
         try:
             db_manager.create_schema()
 
-            links = self.get_all_page_links()
+            links = self._get_all_page_links()
 
             if not links:
                 logger.warning("Ссылок не найдено. Проверьте адрес вики.")
@@ -185,7 +185,7 @@ class WikiScraper:
             for url in tqdm(links, desc="Скачивание страниц: "):
                 try:
                     print(url)
-                    content = self.parse_page(url)
+                    content = self._parse_page(url)
                     if content:
                         db_manager.save_or_update_page_by_url(url, content)
 
@@ -201,10 +201,11 @@ class WikiScraper:
         except Exception as e:
             logger.critical(f"Фатальная ошибка пайплайна: {e}")
         finally:
-            self.close()
+            self._close()
             logger.info("КОНЕЦ: Пайплайн завершен.")
 
 
 if __name__ == "__main__":
+    init_logging()
     wiki_scraper = WikiScraper()
     wiki_scraper.run_scraping_pipeline()

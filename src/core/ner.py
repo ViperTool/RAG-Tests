@@ -3,7 +3,6 @@ from spacy.matcher import Matcher
 
 import config
 
-
 class NERService:
     def __init__(self):
         self.nlp = spacy.load(config.NER_MODEL_NAME)

@@ -1,5 +1,4 @@
 import argparse
-import sys
 
 from src.utils.parser_ow import WikiScraper
 from src.chroma.chroma_handler import ChromaManager
@@ -31,27 +30,26 @@ def main():
     subparsers = parser.add_subparsers(dest="command", required=True, help="Доступные команды")
 
     p_parse = subparsers.add_parser("parse", help="Спарсить данные с Outer Wilds Wiki в SQLite")
+    p_parse.set_defaults(func=cmd_parse)
+
     p_database = subparsers.add_parser("database", help="Создать чанки и сохранить их в SQLite")
     p_database.add_argument(
         "--strategy", "-s",
         type=str,
-        default="fixed",  # Значение по умолчанию
-        choices=["fixed", "sliding"],  # Ограничиваем выбор только этими вариантами
+        default="fixed",
+        choices=["fixed", "sliding"],
         help="Стратегия чанкирования: 'fixed' (фиксированная с перекрытием) или 'sliding' (плавающее окно)"
     )
+    p_database.set_defaults(func=cmd_database)
+
     p_index = subparsers.add_parser("index", help="Векторизовать данные из SQLite в ChromaDB")
+    p_index.set_defaults(func=cmd_index)
+
     p_chat = subparsers.add_parser("chat", help="Запустить интерактивный чат")
+    p_chat.set_defaults(func=cmd_chat)
 
     args = parser.parse_args()
-
-    if args.command == "parse":
-        cmd_parse(args)
-    elif args.command == "database":
-        cmd_database(args)
-    elif args.command == "index":
-        cmd_index(args)
-    elif args.command == "chat":
-        cmd_chat(args)
+    args.func(args)
 
 
 if __name__ == "__main__":

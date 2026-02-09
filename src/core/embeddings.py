@@ -10,7 +10,6 @@ from typing import List, Union
 from src.utils import exceptions
 import config
 
-logging.config.dictConfig(config.LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
 
 class EmbeddingService:
@@ -53,8 +52,10 @@ class EmbeddingService:
 
         logger.info("Выгрузка эмбеддинговой модели...")
         try:
-            if self.model: del self.model
-            if self.tokenizer: del self.tokenizer
+            if self.model:
+                del self.model
+            if self.tokenizer:
+                del self.tokenizer
         except Exception as e:
             logger.warning(f"Ошибка при удалении объектов эмбеддинговой модели: {e}")
         finally:
@@ -66,7 +67,7 @@ class EmbeddingService:
             logger.info("Память очищена.")
 
     @staticmethod
-    def pool(last_hidden_state: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+    def _pool(last_hidden_state: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         """
         Единая логика пулинга
         """
@@ -104,7 +105,7 @@ class EmbeddingService:
                 with torch.no_grad():
                     model_output = self.model(**encoded_input)
 
-                pooled_embeds = self.pool(
+                pooled_embeds = self._pool(
                     model_output.last_hidden_state,
                     encoded_input['attention_mask']
                 )

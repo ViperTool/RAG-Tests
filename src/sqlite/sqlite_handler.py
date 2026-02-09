@@ -1,14 +1,14 @@
 import sqlite3
 import os
 import re
-import logging.config
+import logging
 from tqdm import tqdm
 from typing import List, Tuple, Optional
 
 from src.utils import exceptions
+from src.utils.logger import init_logging
 import config
 
-logging.config.dictConfig(config.LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
 
 class SQLiteManager:
@@ -84,29 +84,49 @@ class SQLiteManager:
             logger.error(f"Ошибка инициализации схемы: {e}")
             raise exceptions.DatabaseError(f"Ошибка инициализации схемы: {e}")
         finally:
-            if conn: conn.close()
+            if conn:
+                conn.close()
 
     # --- Методы работы со страницами (Pages) ---
 
     def save_or_update_page_by_url(self, url: str, content: str) -> Optional[int]:
         """
-        Сохраняет или обновляет страницу по URL. Возвращает ID страницы.
+        Сохраняет страницу, если контент уникален.
+        Если контент уже существует под другим URL — пропускает сохранение.
         """
         conn = None
         try:
             conn = self._get_connection()
-            page_id = None
             cursor = conn.cursor()
+
+            cursor.execute(
+                f"SELECT page_id, page_url FROM {self.page_table_name} WHERE page_content = ?",
+                (content,)
+            )
+            existing_row = cursor.fetchone()
+
+            if existing_row:
+                existing_id, existing_url = existing_row
+                if existing_url == url:
+                    pass
+                else:
+                    logger.warning(f"ПРОПУСК: Контент для '{url}' идентичен странице '{existing_url}' (ID: {existing_id}).")
+                    return None
+
             cursor.execute(
                 f"INSERT OR REPLACE INTO {self.page_table_name} (page_url, page_content) VALUES (?, ?)",
                 (url, content)
             )
+
             cursor.execute(f"SELECT page_id FROM {self.page_table_name} WHERE page_url = ?", (url,))
             row = cursor.fetchone()
+
+            page_id = None
             if row:
                 page_id = row[0]
                 conn.commit()
-                logger.info(f"Страница '{url}' сохранена (ID: {page_id})")
+                if not existing_row:
+                    logger.info(f"Страница '{url}' сохранена (ID: {page_id})")
             else:
                 logger.error(f"Ошибка: Не удалось получить ID для {url}")
 
@@ -116,9 +136,10 @@ class SQLiteManager:
             logger.error(f"Ошибка SQLite при сохранении {url}: {e}")
             raise exceptions.DatabaseError(f"Ошибка SQLite при сохранении {url}: {e}")
         finally:
-            if conn: conn.close()
+            if conn:
+                conn.close()
 
-    def get_all_pages(self) -> List[Tuple[int, str, str]]:
+    def _get_all_pages(self) -> List[Tuple[int, str, str]]:
         """
         Возвращает список всех страниц: (page_id, page_url, page_content).
         """
@@ -129,7 +150,7 @@ class SQLiteManager:
         conn.close()
         return results
 
-    def get_page_by_url(self, url: str) -> Optional[Tuple[int, str, str]]:
+    def _get_page_by_url(self, url: str) -> Optional[Tuple[int, str, str]]:
         """
         Ищет страницу по URL.
         """
@@ -148,11 +169,12 @@ class SQLiteManager:
             logger.error(f"Не удалось получить страницу по URL {url}: {e}")
             raise exceptions.DatabaseError(f"Не удалось получить страницу по URL {url}: {e}")
         finally:
-            if conn: conn.close()
+            if conn:
+                conn.close()
 
     # --- Методы работы с чанками (Chunks) ---
 
-    def save_chunks(self, page_id: int, chunks: List[str]) -> None:
+    def _save_chunks(self, page_id: int, chunks: List[str]) -> None:
         """
         Сохраняет список чанков для указанной страницы, предварительно удаляя старые.
         """
@@ -173,7 +195,8 @@ class SQLiteManager:
             logger.error(f"Ошибка сохранения чанков для ID {page_id}: {e}")
             raise exceptions.DatabaseError(f"Ошибка сохранения чанков для ID {page_id}: {e}")
         finally:
-            if conn: conn.close()
+            if conn:
+                conn.close()
 
     def get_all_chunks(self) -> List[Tuple[int, int, str, int]]:
         """
@@ -193,7 +216,8 @@ class SQLiteManager:
             logger.error(f"Ошибка при получении всех чанков: {e}")
             raise exceptions.DatabaseError(f"Ошибка при получении всех чанков: {e}")
         finally:
-            if conn: conn.close()
+            if conn:
+                conn.close()
 
     def get_chunks_by_page_id(self, page_id: int) -> List[Tuple[int, int, str, int]]:
         """
@@ -213,7 +237,8 @@ class SQLiteManager:
             logger.error(f"Не удалось получить чанки для страницы {page_id}: {e}")
             raise exceptions.DatabaseError(f"Не удалось получить чанки для страницы {page_id}: {e}")
         finally:
-            if conn: conn.close()
+            if conn:
+                conn.close()
 
     # --- Методы очистки (Cleanup) ---
 
@@ -239,9 +264,10 @@ class SQLiteManager:
             logger.error(f"Ошибка при удалении данных ID {page_id}: {e}")
             raise exceptions.DatabaseError(f"Ошибка при удалении данных ID {page_id}: {e}")
         finally:
-            if conn: conn.close()
+            if conn:
+                conn.close()
 
-    def clear_database(self, clear_pages: bool = False) -> None:
+    def _clear_database(self, clear_pages: bool = False) -> None:
         """
         Полная очистка: удаляет все чанки. Если clear_pages=True, удаляет и страницы.
         """
@@ -249,7 +275,10 @@ class SQLiteManager:
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute(f"DELETE FROM {self.chunk_table_name}")
+            try:
+                cursor.execute(f"DELETE FROM {self.chunk_table_name}")
+            except sqlite3.OperationalError:
+                logger.warning(f"Таблица {self.chunk_table_name} не существовала; нечего удалять.")
             cursor.execute(f"UPDATE 'sqlite_sequence' SET seq = 0 WHERE name = \"{self.chunk_table_name}\"")
             if clear_pages:
                 cursor.execute(f"DELETE FROM {self.page_table_name}")
@@ -262,12 +291,13 @@ class SQLiteManager:
             logger.error(f"Ошибка при очистки базы данных: {e}")
             raise exceptions.DatabaseError(f"Ошибка при очистки базы данных: {e}")
         finally:
-            if conn: conn.close()
+            if conn:
+                conn.close()
 
     # --- Статические методы обработки текста ---
 
     @staticmethod
-    def clean_text(content: str) -> str:
+    def _clean_text(content: str) -> str:
         """
         Очищает текст от ненужных данных
 
@@ -302,7 +332,7 @@ class SQLiteManager:
             raise exceptions.TextProcessingError(f"Ошибка при обработке текста: {e}")
 
     @staticmethod
-    def extract_title_and_content(page: str) -> Tuple[str, str]:
+    def _extract_title_and_content(page: str) -> Tuple[str, str]:
         """
         Парсит сырой текст страницы на заголовок и контент.
         Ожидает формат: "Заголовок: ... \n ... Содержимое:\n ..."
@@ -317,9 +347,9 @@ class SQLiteManager:
 
     # --- Методы чанкирования ---
     @staticmethod
-    def chunk_text_by_length_with_overlap(title: str, content: str,
-                                          chunk_size: int = config.C_BASIC_SIZE,
-                                          overlap: int = config.C_BASIC_OVERLAP) -> List[str]:
+    def _chunk_text_by_length_with_overlap(title: str, content: str,
+                                           chunk_size: int = config.C_BASIC_SIZE,
+                                           overlap: int = config.C_BASIC_OVERLAP) -> List[str]:
         """
         Разбивает текст на чанки фиксированной длины с перекрытием.
         """
@@ -343,7 +373,7 @@ class SQLiteManager:
             raise exceptions.ChunkingError(f"Ошибка при фиксированном чанкировании: {e}")
 
     @staticmethod
-    def chunk_text_by_sentences(title: str, content: str) -> List[str]:
+    def _chunk_text_by_sentences(title: str, content: str) -> List[str]:
         """
         Разбивает текст на чанки по предложениям, добавляя префикс заголовка.
         """
@@ -379,19 +409,19 @@ class SQLiteManager:
         """
         logger.info("ЗАПУСК: Пайплайн обработки SQLite.")
 
-        self.clear_database()
+        self._clear_database()
         self.create_schema()
 
         match strategy:
             case "fixed":
-                chunking_callable = self.chunk_text_by_length_with_overlap
+                chunking_callable = self._chunk_text_by_length_with_overlap
             case "sliding":
-                chunking_callable = self.chunk_text_by_sentences
+                chunking_callable = self._chunk_text_by_sentences
             case _:
                 logger.error(f"Ошибка: некорректная стратегия: {strategy}")
                 raise exceptions.TextProcessingError(f"Некорректная стратегия: {strategy}")
 
-        pages = self.get_all_pages()
+        pages = self._get_all_pages()
         if not pages:
             logger.error("Нет страниц для обработки.")
             return
@@ -400,15 +430,17 @@ class SQLiteManager:
             page_id = page[0]
             raw_text = page[2]
 
-            title, body = self.extract_title_and_content(raw_text)
-            clean_body = self.clean_text(body)
+            title, body = self._extract_title_and_content(raw_text)
+            clean_body = self._clean_text(body)
 
             chunks = chunking_callable(title, clean_body)
 
-            self.save_chunks(page_id, chunks)
+            self._save_chunks(page_id, chunks)
 
         logger.info("КОНЕЦ: Пайплайн обработки SQLite.")
 
+
 if __name__ == '__main__':
+    init_logging()
     sqlite_manager = SQLiteManager()
-    sqlite_manager.run_processing_pipeline()
+    sqlite_manager.run_processing_pipeline("sliding")

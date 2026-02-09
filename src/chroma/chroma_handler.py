@@ -1,15 +1,15 @@
 import chromadb
-import logging.config
-from chromadb import Documents, EmbeddingFunction, Embeddings, errors
+import logging
+import config
+from chromadb import Documents, EmbeddingFunction, Embeddings
 from typing import List, Tuple, Optional
 from tqdm import tqdm
 
 from src.utils import exceptions
-import config
 from src.core.embeddings import EmbeddingService
 from src.sqlite.sqlite_handler import SQLiteManager
+from src.utils.logger import init_logging
 
-logging.config.dictConfig(config.LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
 
 class ChromaEmbeddingAdapter(EmbeddingFunction):
@@ -62,12 +62,12 @@ class ChromaManager:
 
     # --- Основные операции с коллекциями ---
 
-    def create_vector_collection(self,
-                                 chunks: List[str],
-                                 page_ids: List[int],
-                                 chunk_orders: List[int],
-                                 collection_name: Optional[str] = None,
-                                 overwrite: bool = False) -> None:
+    def _create_vector_collection(self,
+                                  chunks: List[str],
+                                  page_ids: List[int],
+                                  chunk_orders: List[int],
+                                  collection_name: Optional[str] = None,
+                                  overwrite: bool = False) -> None:
         """
         Создает и заполняет коллекцию в ChromaDB из списков данных.
 
@@ -82,7 +82,7 @@ class ChromaManager:
 
         try:
             if overwrite:
-                self.delete_collection(target_name)
+                self._delete_collection(target_name)
 
             collection = self.client.get_or_create_collection(
                 name=target_name,
@@ -96,7 +96,7 @@ class ChromaManager:
 
             ids = [f"chunk_{p_id}_{c_ord}" for p_id, c_ord in zip(page_ids, chunk_orders)]
 
-            batch_limit = 512
+            batch_limit = 10
             total = len(chunks)
 
             logger.info(f"Начинаем добавление {total} элементов в коллекцию '{target_name}'...")
@@ -116,7 +116,7 @@ class ChromaManager:
             raise exceptions.VectorDBError(f"Ошибка при создании векторной коллекции: {e}")
 
 
-    def load_collection_data(self, collection_name: Optional[str] = None) -> Tuple[List[str], List[dict], List[str]]:
+    def _load_collection_data(self, collection_name: Optional[str] = None) -> Tuple[List[str], List[dict], List[str]]:
         """
         Загружает данные коллекции (документы, метаданные, ID).
         """
@@ -135,11 +135,11 @@ class ChromaManager:
             logger.error(f"Ошибка при загрузке коллекции: {e}")
             raise exceptions.VectorDBError(f"Ошибка при загрузке коллекции: {e}")
 
-    def delete_collection(self, collection_name: str) -> None:
+    def _delete_collection(self, collection_name: str) -> None:
         """
         Удаляет коллекцию по имени.
         """
-        a = str(input(f"Вы уверены, что хотите удалить коллекцию {collection_name}? Для подтверждения напишите Y или y\n"))
+        a = str(input(f"Вы уверены, что хотите удалить коллекцию {collection_name}? (Для подтверждения напишите Y или y): "))
         if a.lower() == "y":
             try:
                 self.client.delete_collection(collection_name)
@@ -176,7 +176,7 @@ class ChromaManager:
         chunks_text = [row[2] for row in raw_chunks]
         chunk_orders = [row[3] for row in raw_chunks]
 
-        self.create_vector_collection(
+        self._create_vector_collection(
             chunks=chunks_text,
             page_ids=page_ids,
             chunk_orders=chunk_orders,
@@ -187,5 +187,6 @@ class ChromaManager:
         logger.info("КОНЕЦ: Пайплайн Chroma")
 
 if __name__ == '__main__':
+    init_logging()
     chroma_manager = ChromaManager()
     chroma_manager.run_chroma_pipeline()
