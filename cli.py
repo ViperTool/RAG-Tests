@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from src.utils.parser import WikiScraper
+from src.utils.parser_ow import WikiScraper
 from src.chroma.chroma_handler import ChromaManager
 from src.sqlite.sqlite_handler import SQLiteManager
 from main import main as run_chat
