@@ -1,0 +1,22 @@
+services:
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rag-api:latest
+    container_name: rag-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Монтируем данные и логи
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # Для разработки: монтируем код (закомментировать в продакшене)
+      - ./src:/app/src
+      - ./config.py:/app/config.py
+    networks:
+      - default
+
+networks:
+  default:
+    driver: bridge

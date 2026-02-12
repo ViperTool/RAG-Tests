@@ -1,85 +1,120 @@
-import config
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 import logging
+import sys
 
-from src.utils.logger import init_logging
+import config
+from src.routers import rag_router
 from src.services.rag import RAGEngine
+from src.utils.logger import init_logging
+from src.schemas.response_models import HealthResponse
 
+# Инициализация логирования
+init_logging()
 logger = logging.getLogger(__name__)
 
-def test():
-    questions = ["Как работает перемещение во времени с помощью черной и белой дыры?",
-                "Для чего нужны башни Часа пепла?",
-                "Какие живые организмы есть в солнечной системе?",
-                "Какие выжившие были на второй спасательной капсуле?",
-                "Для чего использовались проекционные камни?",
-                "Куда возвращаются шаттлы?",
-                "Что осталось от ледяной планеты?",
-                "Какие есть спутники в солнечной системе?",
-                "За сколько минут весь песок пересыпается на песочных часах?",
-                "Кто был первым первым космонавтом-камелянином?",
-                "Какая музыка играет на Солнечной станции и во время Большого взрыва?",
-                "Что указывается в телеметрии шлема?",
-                "Что происходит со вселенной?",
-                "Что происходит на квантовой луне?",
-                "На что не может нацелиться локатор Ока?",
-                "Опиши кратко каждую планету солнечной системы и время её оборота вокруг солнца",
-                "Какие в игре есть концовки?",
-                "Есть ли узел с особенным свойством на черном терновнике",
-                "Какое управление осуществляется на орбитальной пушке?",
-                "Сколько режимов есть у сигналоскопа?",
-                "Для чего создали кузницу 'Черная дыра'?",
-                "Какие объекты подвержены квантовому эффекту?",
-                "Есть ли такой костёр, рядом с которым нет камелянина?",
-                "Что стреляет зондом и сколько у этого модулей?",
-                "Какие постройки находятся на Часе угля?",
-                "Что общего у имён Номаи?",
-                "Какая судьба у всех рас в солнечной системе?",
-                "Ссорились ли Номаи?",
-                "Как Номаи узнали об оке вселенной?",
-                "Где добывали руду для Часа пепла и как её тестировали?",
-                "Что летает вокруг Камелька?",
-                "Сколько камелян застряли во временной петле?",
-                "На каких инструментах играют Покорители дикого космоса?",
-                "Какие локации есть на Незнакомце?",
-                "Какая планета быстрее всего вращается вокруг солнца?",
-                "Как планеты были задействованы в проекте Час пепла?",
-                "Кто обнаружил эффект отрицательного временного интервала? Был ли у него партнёр?",
-                "Кто из номаи исследовал квантовые свойства?",
-                "В каких случаях разведчик не получится вернуть обратно?",
-                "Как система меняется во время цикла?",
-                "Как попасть на око вселенной?",
-                "Как попасть в симуляцию?",
-                "Как я могу получить концовку 'Игра окончена', пошагово",
-                "Как я могу восстановить своё здоровье?",
-                "Как попасть на шестое местоположение?",
-                "Как добыть координаты ока вселенной?",
-                "Что мне надо сделать, чтобы получить коды запуска?",
-                "Как попасть на станцию 'белая дыра'?",
-                "Как мне вернуться со станции 'белая дыра'?",
-                "Как мне погрузиться на дно Пучины гиганта?"]
 
-    rag = RAGEngine(collection_name=config.COLLECTION_NAME)
+# Lifespan для управления жизненным циклом приложения
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Управление ресурсами при запуске и остановке"""
+    # Startup
+    logger.info("Запуск приложения...")
+    try:
+        rag_router.rag_engine = RAGEngine(collection_name=config.COLLECTION_NAME)
+        logger.info("RAG-система успешно инициализирована")
+    except Exception as e:
+        logger.error(f"Ошибка инициализации RAG: {e}")
+        sys.exit(1)
 
-    for query in questions[45:]:
-        context = rag.search(query=query, chunkung_config=config.SELECTED_C_CONFIG)
-        rag.generator_service.ask_api(query=query,
-                                      context=context) \
-            if config.G_USE_REMOTE_MODEL \
-            else rag.generator_service.generate_response(query=query,
-                                                         context=context)
+    yield
 
-def main():
-    rag = RAGEngine(collection_name=config.COLLECTION_NAME)
+    # Shutdown
+    logger.info("Остановка приложения...")
+    # Здесь можно добавить очистку ресурсов
+    logger.info("Приложение остановлено")
 
-    while True:
-        query = input("\nВопрос: ")
-        context = rag.search(query=query, chunkung_config=config.SELECTED_C_CONFIG)
-        rag.generator_service.ask_api(query=query,
-                                             context=context) \
-            if config.G_USE_REMOTE_MODEL \
-            else rag.generator_service.generate_response(query=query,
-                                              context=context)
+
+# Создание приложения FastAPI
+app = FastAPI(
+    title="Outer Wilds RAG API",
+    description="API для интеллектуального ассистента по базе знаний игры Outer Wilds",
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# CORS middleware (настройте под свои нужды)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # В продакшене укажите конкретные домены
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Подключение роутеров
+app.include_router(rag_router.router)
+
+
+# Базовые эндпоинты
+@app.get("/", tags=["Root"])
+async def root():
+    """Корневой эндпоинт"""
+    return {
+        "message": "Outer Wilds RAG API",
+        "version": "1.0.0",
+        "docs": "/docs"
+    }
+
+
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    tags=["Health"],
+    summary="Проверка состояния сервиса"
+)
+async def health_check():
+    """Проверка работоспособности API и загруженных моделей"""
+    try:
+        rag = rag_router.rag_engine
+
+        return HealthResponse(
+            status="healthy",
+            models_loaded={
+                "embedding_model": rag.embedding_service.model is not None,
+                "generator_model": rag.generator_service.model is not None if not config.G_USE_REMOTE_MODEL else "remote",
+                "ner_model": True,
+                "crossencoder_model": True
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "error": str(e)}
+        )
+
+
+# Обработчик глобальных исключений
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Необработанное исключение: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Internal server error", "detail": str(exc)}
+    )
+
 
 if __name__ == "__main__":
-    init_logging()
-    main()
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )
