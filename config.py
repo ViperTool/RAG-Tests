@@ -37,7 +37,7 @@ CE_DEVICE = "cpu"
 
 # Настройки Generator-модели
 G_USE_REMOTE_MODEL = True
-G_REMOTE_MODEL_NAME = "tngtech/deepseek-r1t-chimera:free"
+G_REMOTE_MODEL_NAME = "arcee-ai/trinity-mini:free"
 G_LOCAL_MODEL_NAME = "Qwen/Qwen3-1.7B"
 G_DEVICE = "cuda"
 
