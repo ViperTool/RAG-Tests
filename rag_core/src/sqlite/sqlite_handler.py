@@ -5,8 +5,8 @@ import logging
 from tqdm import tqdm
 from typing import List, Tuple, Optional
 
-from src.utils import exceptions
-from src.utils.logger import init_logging
+from rag_core.src.utils import exceptions
+from rag_core.src.utils.logger import init_logging
 import config
 
 logger = logging.getLogger(__name__)

@@ -1,4 +1,4 @@
-from src.utils import exceptions
+from rag_core.src.utils import exceptions
 import config
 
 import numpy as np
@@ -9,11 +9,11 @@ from rank_bm25 import BM25Okapi
 from scipy.ndimage import gaussian_filter
 from sklearn.metrics.pairwise import cosine_similarity
 
-from src.core.embeddings import EmbeddingService
-from src.core.generators import GeneratorService
-from src.core.crossencoder import CrossEncoderService
-from src.core.ner import NERService
-from src.chroma.chroma_handler import ChromaManager
+from rag_core.src.core.embeddings import EmbeddingService
+from rag_core.src.core.generators import GeneratorService
+from rag_core.src.core.crossencoder import CrossEncoderService
+from rag_core.src.core.ner import NERService
+from rag_core.src.chroma.chroma_handler import ChromaManager
 
 logger = logging.getLogger(__name__)
 

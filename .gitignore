@@ -148,7 +148,7 @@ activemq-data/
 *.sage.py
 
 # Environments
-.env
+rag_core/.env
 .envrc
 .venv
 env/
@@ -215,7 +215,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-data/
+rag_core/data/
 data_copy/
 *.db
 *.sqlite3

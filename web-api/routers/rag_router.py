@@ -1,11 +1,10 @@
 from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import StreamingResponse
 import logging
 from typing import Optional
 
-from src.schemas.request_models import QueryRequest
-from src.schemas.response_models import QueryResponse, ErrorResponse
-from src.services.rag import RAGEngine
+from rag_core.src.schemas.request_models import QueryRequest
+from rag_core.src.schemas.response_models import QueryResponse, ErrorResponse
+from rag_core.src.services.rag import RAGEngine
 import config
 
 logger = logging.getLogger(__name__)

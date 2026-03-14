@@ -12,9 +12,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-from src.sqlite.sqlite_handler import SQLiteManager
-from src.utils import exceptions
-from src.utils.logger import init_logging
+from rag_core.src.sqlite.sqlite_handler import SQLiteManager
+from rag_core.src.utils import exceptions
+from rag_core.src.utils.logger import init_logging
 import config
 
 logger = logging.getLogger(__name__)

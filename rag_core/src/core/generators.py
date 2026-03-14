@@ -8,8 +8,8 @@ import logging.config
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from dotenv import load_dotenv
 
-from src.utils.wrappers import log_execution
-from src.utils import exceptions
+from rag_core.src.utils.wrappers import log_execution
+from rag_core.src.utils import exceptions
 import config
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,6 @@ from typing import List
 from scipy.ndimage import gaussian_filter
 from sklearn.metrics.pairwise import cosine_similarity
 
-import config
 import logging.config
 
 logger = logging.getLogger(__name__)
