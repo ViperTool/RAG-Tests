@@ -2,7 +2,7 @@ from sentence_transformers import CrossEncoder
 from typing import List, Tuple
 import gc
 import logging.config
-from rag_core.src.utils import exceptions
+from src.utils import exceptions
 import config
 
 logger = logging.getLogger(__name__)

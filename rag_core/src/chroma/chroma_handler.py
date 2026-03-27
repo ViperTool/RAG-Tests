@@ -5,10 +5,10 @@ from chromadb import Documents, EmbeddingFunction, Embeddings
 from typing import List, Tuple, Optional
 from tqdm import tqdm
 
-from rag_core.src.utils import exceptions
-from rag_core.src.core.embeddings import EmbeddingService
-from rag_core.src.sqlite.sqlite_handler import SQLiteManager
-from rag_core.src.utils.logger import init_logging
+from src.utils import exceptions
+from src.core.embeddings import EmbeddingService
+from src.sqlite.sqlite_handler import SQLiteManager
+from src.utils.logger import init_logging
 
 logger = logging.getLogger(__name__)
 

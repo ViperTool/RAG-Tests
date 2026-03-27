@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer, T5EncoderModel
 from typing import List, Union
 
-from rag_core.src.utils import exceptions
+from src.utils import exceptions
 import config
 
 logger = logging.getLogger(__name__)
