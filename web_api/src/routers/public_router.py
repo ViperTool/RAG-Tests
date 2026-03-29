@@ -6,7 +6,7 @@ import os
 from src.schemas.request_models import QueryRequest
 from src.schemas.response_models import QueryResponse, ErrorResponse, HealthResponse
 
-RAG_CORE_URL = os.getenv("RAG_CORE_URL", "http://localhost:8001")
+RAG_CORE_URL = os.getenv("RAG_CORE_URL", "http://rag-core:8001")
 
 # Создание роутера
 router = APIRouter(

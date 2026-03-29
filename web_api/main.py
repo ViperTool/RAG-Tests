@@ -5,8 +5,6 @@ import os
 
 from src.routers import public_router
 
-RAG_CORE_URL = os.getenv("RAG_CORE_URL", "http://localhost:8001")
-
 # Создание приложения FastAPI
 app = FastAPI(
     title="Public RAG API",

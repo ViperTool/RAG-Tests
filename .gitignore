@@ -151,6 +151,7 @@ activemq-data/
 rag_core/.env
 .envrc
 .venv
+.env
 env/
 venv/
 ENV/
@@ -215,7 +216,10 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+data/
+logs/
 rag_core/data/
+rag_core/logs/
 data_copy/
 *.db
 *.sqlite3

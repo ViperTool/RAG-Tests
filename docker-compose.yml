@@ -1,22 +1,51 @@
+version: '3.8'
+
 services:
-  rag-api:
+  rag-core:
     build:
-      context: .
+      context: ./rag_core
       dockerfile: Dockerfile
-    image: rag-api:latest
-    container_name: rag-api
-    ports:
-      - "8000:8000"
+    container_name: rag_core
+    # Пробрасывать порт наружу не обязательно, он доступен только внутри сети Docker
+    expose:
+      - "8001"
     volumes:
-      # Монтируем данные и логи
-      - ./data:/app/data
-      - ./logs:/app/logs
-      # Для разработки: монтируем код (закомментировать в продакшене)
-      - ./src:/app/src
-      - ./config.py:/app/config.py
+      - ./rag_core/data:/app/data
+      - ./rag_core/logs:/app/logs
+      - hf_cache:/root/.cache/huggingface
+    environment:
+      - HF_HOME=/root/.cache/huggingface
     networks:
-      - default
+      - rag_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+  web-api:
+    build:
+      context: ./web_api
+      dockerfile: Dockerfile
+    container_name: rag_web_api
+    ports:
+      - "8000:8000" # Этот порт торчит наружу для пользователей
+    environment:
+      # Важно: "rag-core" совпадает с именем сервиса выше
+      - RAG_CORE_URL=http://rag-core:8001 
+    depends_on:
+      - rag-core
+    networks:
+      - rag_network
+    restart: unless-stopped
 
 networks:
-  default:
+  rag_network:
     driver: bridge
+
+volumes:
+  hf_cache:
+    name: rag_hf_cache
