@@ -158,7 +158,7 @@ class WikiScraper:
     def _clean_text(text: str) -> str:
         trash_phrases = [
             '(Издания для ПК, консолей, консолей старого поколения и мобильных устройств)',
-            'ВНИМАНИЕ, СПОЙЛЕРЫ : Статья содержит детали сюжета игры Outer Wilds',
+            'ВНИМАНИЕ, СПОЙЛЕРЫ : Статья содержит детали сюжета игры Oneshot',
             'View or edit this template'
         ]
         for phrase in trash_phrases:
