@@ -4,7 +4,6 @@ services:
       context: ./rag_core
       dockerfile: Dockerfile
     container_name: rag_core
-    # Пробрасывать порт наружу не обязательно, он доступен только внутри сети Docker
     expose:
       - "8001"
     volumes:
@@ -30,15 +29,27 @@ services:
       dockerfile: Dockerfile
     container_name: rag_web_api
     ports:
-      - "8000:8000" # Этот порт торчит наружу для пользователей
+      - "8000:8000"
     environment:
-      # Важно: "rag-core" совпадает с именем сервиса выше
       - RAG_CORE_URL=http://rag-core:8001 
     depends_on:
       - rag-core
     networks:
       - rag_network
     restart: unless-stopped
+
+  frontend:
+      build:
+        context: ./frontend
+        dockerfile: Dockerfile
+      container_name: rag_frontend
+      ports:
+        - "80:80"
+      depends_on:
+        - web-api
+      networks:
+        - rag_network
+      restart: unless-stopped
 
 networks:
   rag_network:

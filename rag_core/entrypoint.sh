@@ -2,10 +2,7 @@
 set -e
 
 # Проверяем, существует ли файл базы SQLite или папка ChromaDB
-if [ ! -f "/app/data/chroma.sqlite3" ] && [ -f "/app/data/wiki_content.db" ]; then
-    echo "Найден только wiki_content.db. Индексируем контент..."
-    python cli.py index
-elif [ ! -f "/app/data/chroma.sqlite3" ] || [ ! -f "/app/data/wiki_content.db" ]; then
+if [ ! -f "/app/data/wiki_content.db" ]; then
     echo "База данных не найдена. Начинаем сбор и индексацию данных..."
     # Здесь вызываем ваш CLI или скрипт парсинга
     python cli.py parse
