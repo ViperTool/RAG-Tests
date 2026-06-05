@@ -208,14 +208,8 @@ class RAGEngine:
 
         logger.info(f"Результаты лексического поиска: {top_bm25_indices}")
 
-        # Динамическая загрузка модели
-        if self.embedding_service.model is None:
-            self.embedding_service.load()
         # Векторный поиск
         query_vec = self.embedding_service.encode(query, normalize=True)
-
-        if config.R_UNLOAD_ON_GENERATION:
-            self.embedding_service.unload()
 
         vector_results = self.collection.query(
             query_embeddings=query_vec.tolist(),

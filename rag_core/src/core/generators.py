@@ -1,18 +1,13 @@
-from typing import Any, Tuple
-
-import torch
 import requests
-import gc
+import logging
 import os
-import logging.config
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from dotenv import load_dotenv
-
+from typing import Tuple, Any
 from src.utils.wrappers import log_execution
 from src.utils import exceptions
 import config
 
 logger = logging.getLogger(__name__)
+
 
 def form_prompt(query: str, context: str, system_prompt: str = str(config.G_SYSTEM_PROMPT)) -> str:
     prompt = f"Роль: {system_prompt}\n\n" if system_prompt else ""
@@ -21,67 +16,7 @@ def form_prompt(query: str, context: str, system_prompt: str = str(config.G_SYST
 
 class GeneratorService:
     def __init__(self):
-        self.device = config.G_DEVICE
-        self.tokenizer = None
-        self.model = None
-        load_dotenv()
-
-    def load(self, model_name: str = config.G_LOCAL_MODEL_NAME):
-        """
-        Загрузка модели
-        """
-        logger.info(f"Загрузка генеративной модели {model_name} на {self.device.upper()}...")
-
-        if self.model is not None:
-            logger.info("Генеративная модель уже загружена.")
-            return
-
-        try:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                model_name
-            )
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                dtype=(
-                    torch.bfloat16
-                    if torch.cuda.is_bf16_supported()
-                    else torch.float16
-                ),
-                device_map=self.device,
-                trust_remote_code=True
-            ).eval()
-            logger.info("Генеративная модель успешно загружена.")
-
-        except OSError as e:
-            logger.critical(f"Не удалось найти или скачать генеративную модель {model_name}: {e}")
-            raise exceptions.ModelLoadingError(f"Ошибка файлов генеративной модели: {e}") from e
-        except torch.cuda.OutOfMemoryError as e:
-            logger.critical(f"Недостаточно VRAM для загрузки генеративной модели {model_name}")
-            self.unload()
-            raise exceptions.ModelLoadingError(f"Недостаточно VRAM для загрузки генеративной модели {model_name}") from e
-        except Exception as e:
-            logger.critical(f"Ошибка инициализации GeneratorService: {e}")
-            raise exceptions.ModelLoadingError(f"Неизвестная ошибка инициализации GeneratorService: {e}") from e
-
-    def unload(self):
-        """
-        Принудительная выгрузка модели из VRAM
-        """
-        logger.info("Выгрузка генеративной модели из VRAM...")
-        try:
-            if self.model:
-                del self.model
-            if self.tokenizer:
-                del self.tokenizer
-        except Exception as e:
-            logger.warning(f"Ошибка при удалении объектов генеративной модели: {e}")
-        finally:
-            self.model = None
-            self.tokenizer = None
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            logger.info("Память очищена")
+        self.base_url = config.G_LOCAL_MODEL_URL
 
     @log_execution
     def generate_response(
@@ -89,58 +24,40 @@ class GeneratorService:
             query: str,
             context: str,
             max_new_tokens: int = 1024,
-    ):
+    ) -> Tuple[str, int, int]:
+        """
+        Теперь это запрос к локальному llama server (OpenAI-compatible API)
+        """
+        url = f"{self.base_url}/chat/completions"
 
-        full_prompt = form_prompt(query, context)
-        messages = [
-            {"role": "user", "content": full_prompt},
-        ]
+        user_content = form_prompt(query, context)
+
+        payload = {
+            "model": config.G_LOCAL_MODEL_NAME,
+            "messages": [
+                {"role": "user", "content": user_content},
+            ],
+            "temperature": 0.1,
+            "max_tokens": max_new_tokens
+        }
 
         try:
-            if not self.model:
-                self.load()
+            response = requests.post(url, json=payload, timeout=120)
+            response.raise_for_status()
 
-            text = self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True,
-                enable_thinking=False
-            )
+            data = response.json()
+            content = data['choices'][0]['message']['content'].strip()
 
-            model_inputs = self.tokenizer([text], return_tensors="pt").to(self.model.device)
+            usage = data.get('usage', {})
+            prompt_tokens = usage.get('prompt_tokens', 0)
+            completion_tokens = usage.get('completion_tokens', 0)
 
-            prompt_tokens = model_inputs.input_ids.shape[1]
-
-            with torch.no_grad():
-                generated_ids = self.model.generate(
-                    **model_inputs,
-                    max_new_tokens=max_new_tokens,
-                    do_sample=True,
-                    temperature=0.1,
-                    top_p=0.9,
-                    pad_token_id=self.tokenizer.eos_token_id
-                )
-
-            total_ids_count = generated_ids.shape[1]
-            completion_tokens = total_ids_count - prompt_tokens
-
-            output_ids = generated_ids[0][prompt_tokens:]
-            content = self.tokenizer.decode(output_ids, skip_special_tokens=True).strip()
-
-            logger.info(f"Ответ модели: {content}\n"
-                        f"Количество токенов промпта: {prompt_tokens}\n"
-                        f"Количество использованных токенов: {completion_tokens}")
-
+            logger.info(f"Локальный сервер ответил успешно. Токены: {prompt_tokens} in / {completion_tokens} out")
             return content, prompt_tokens, completion_tokens
 
-
-        except torch.cuda.OutOfMemoryError as e:
-            logger.error("OOM во время генерации. Пробуем очистить кэш.")
-            torch.cuda.empty_cache()
-            raise exceptions.GenerationError("Не хватило памяти для генерации ответа.") from e
         except Exception as e:
-            logger.error(f"Ошибка генерации: {e}")
-            raise exceptions.GenerationError(f"Сбой inference: {e}") from e
+            logger.error(f"Ошибка при обращении к локальному Llama серверу: {e}")
+            raise exceptions.GenerationError(f"Llama server error: {e}")
 
     @staticmethod
     def ask_api(query: str, context: str) -> Tuple[Any, Any, Any]:

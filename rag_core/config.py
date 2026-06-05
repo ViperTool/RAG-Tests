@@ -13,7 +13,7 @@ CHROMA_DB_PATH = DATA_DIR
 LOGS_DIR = BASE_DIR / "logs"
 COLLECTION_NAME = "wiki_chunks_sentences"
 
-WIKI_URL = "https://oneshot.fandom.com/ru/wiki/"
+WIKI_URL = "https://www.kubsu.ru/ru/"
 
 # Настройки создания чанкирования
 # Фиксированное с перекрытием
@@ -21,27 +21,30 @@ C_BASIC_SIZE = 512
 C_BASIC_OVERLAP = 200
 
 # Настройки Retriever-модели
-R_EMBEDDING_MODEL_NAME = os.getenv("R_EMBEDDING_MODEL_NAME", "ai-forever/FRIDA")
+R_EMBEDDING_MODEL_NAME = os.getenv("R_EMBEDDING_MODEL_NAME", "FRIDA-q8_0.gguf")
 R_MAX_LENGTH = 512
 R_BATCH_SIZE = 16
 R_POOLING_METHOD = "cls"
 R_DEVICE = os.getenv("R_DEVICE", "cpu")
 R_UNLOAD_ON_GENERATION = False
+R_EMBEDDING_API_URL = os.getenv("R_EMBEDDING_API_URL", "http://172.29.0.1:8083/v1") # Эмбеддинги
 
 # Настройка NER-модели
 NER_MODEL_NAME = "ru_core_news_md"
 
 # Настройка CrossEncoder-модели
-CE_LOCAL_MODEL_NAME = "DiTy/cross-encoder-russian-msmarco"
+CE_LOCAL_MODEL_NAME = os.getenv("CE_LOCAL_MODEL_NAME", "bge-reranker-v2-m3-q4_k_m.gguf")
 CE_DEVICE = "cpu"
+CE_RERANKER_API_URL = os.getenv("CE_RERANKER_API_URL", "http://172.29.0.1:8084/v1") # Реранкер (Cross-Encoder)
 
 # Настройки Generator-модели
 G_USE_REMOTE_MODEL = os.getenv("G_USE_REMOTE_MODEL", "True").lower() == "true"
-G_REMOTE_MODEL_NAME = os.getenv("G_REMOTE_MODEL_NAME", "arcee-ai/trinity-mini:free")
-G_LOCAL_MODEL_NAME = os.getenv("G_LOCAL_MODEL_NAME", "t-tech/T-lite-it-1.0")
+G_REMOTE_MODEL_NAME = os.getenv("G_REMOTE_MODEL_NAME", "moonshotai/kimi-k2.6:free")
+G_LOCAL_MODEL_NAME = os.getenv("G_LOCAL_MODEL_NAME", "t-lite-it-1.0-q8_0.gguf")
 G_DEVICE = os.getenv("G_DEVICE", "cpu")
+G_LOCAL_MODEL_URL = os.getenv("G_LOCAL_MODEL_URL", "http://172.29.0.1:8082/v1")   # Генератор (LLM)
 
-G_SYSTEM_PROMPT = "Ты — мировая машина с экспертизой в области игры Oneshot. Твоя задача — дать точный, структурированный и профессиональный ответ на вопрос пользователя, строго на основе предоставленного контекста. ### Инструкции по формированию ответа ### 1.  Анализ релевантности: Внимательно проанализируй, полностью ли предоставленный контекст отвечает на вопрос пользователя. Если информации в контексте недостаточно, укажи дословно, что «информации для ответа недостаточно» для полного ответа. 2.  Основа ответа: Ответ должен на 100% основываться на предоставленном контексте. ЗАПРЕЩЕНО привносить информацию из своих знаний или делать предположения. 3.  Борьба с галлюцинациями: Если ответа на вопрос в контексте нет, скажи четко: \"В предоставленных данных нет информации для ответа на этот вопрос\". Не пытайся придумать ответ. 4.  Сокращения: НЕ расшифровывай сокращения и аббревиатуры, если их точная расшифровка явно не приведена в контексте. Используй только те термины, которые есть в контексте. 5.  Структура и ясность: Ответ должен быть логичным, структурированным и профессиональным. Избегай водных вступлений. Если вопрос сложный, разбей ответ на части с подзаголовками или маркированными списками. 6.  Перепроверка (Критически важный шаг): Прежде чем сформировать итоговый ответ, выполни мысленную проверку: *   \"Соответствует ли каждый мой тезис фрагменту из контекста?\" *   \"Могу ли я указать на источник (условный номер абзаца) для каждого утверждения?\" *   \"Нет ли в моем ответе домыслов или непроверенных допущений?\" ### Выходной формат ### Ответ должен быть оформлен следующим образом: Анализ запроса: [Кратко сформулируй, как ты понял задачу, и насколько контекст релевантен] Ответ: [Здесь размести основной, структурированный ответ, основанный на контексте] Примечание: [Укажи здесь, если информации недостаточно, или если в контексте есть противоречивые данные] ### Вопрос пользователя: ###"
+G_SYSTEM_PROMPT = """Ты полезный ассистент по вопросам связанным с университетом КубГУ. Ответь на вопрос, используя только контекст"""
 G_PRINT_CHUNKS = True
 
 # Сетапы чанкирования

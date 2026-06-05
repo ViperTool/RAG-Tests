@@ -215,15 +215,13 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-data/
 logs/
-rag_core/data/
+rag_core/data/evaluation
 rag_core/logs/
 data_copy/
-*.db
-*.sqlite3
 __pycache__/
 .venv/
 .idea/
 .log
 node_modules/
+models/
