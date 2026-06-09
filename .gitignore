@@ -14,7 +14,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -148,9 +147,10 @@ activemq-data/
 *.sage.py
 
 # Environments
-.env
+rag_core/.env
 .envrc
 .venv
+.env
 env/
 venv/
 ENV/
@@ -215,11 +215,13 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-data/
+logs/
+rag_core/data/evaluation
+rag_core/logs/
 data_copy/
-*.db
-*.sqlite3
 __pycache__/
 .venv/
 .idea/
 .log
+node_modules/
+models/

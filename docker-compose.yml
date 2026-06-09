@@ -1,0 +1,186 @@
+services:
+  rag-core:
+    build:
+      context: ./rag_core
+      dockerfile: Dockerfile
+    container_name: rag_core
+    expose:
+      - "8001"
+    volumes:
+      - ./rag_core/data:/app/data
+      - ./rag_core/logs:/app/logs
+      - hf_cache:/root/.cache/huggingface
+    environment:
+      - HF_HOME=/root/.cache/huggingface
+      # Embeddings
+      - R_EMBEDDING_MODEL_NAME=${R_EMBEDDING_MODEL_NAME}
+      - R_EMBEDDING_API_URL=${R_EMBEDDING_API_URL:-http://llama-embeddings:8083/v1}
+      - R_DEVICE=${R_DEVICE:-cpu}
+      # Generator
+      - G_USE_REMOTE_MODEL=${G_USE_REMOTE_MODEL:-false}
+      - G_REMOTE_MODEL_NAME=${G_REMOTE_MODEL_NAME}
+      - G_REMOTE_MODEL_API=${G_REMOTE_MODEL_API:-}
+      - G_LOCAL_MODEL_NAME=${G_LOCAL_MODEL_NAME}
+      - G_LOCAL_MODEL_URL=${G_LOCAL_MODEL_URL:-http://llama-generator:8082/v1}
+      - G_DEVICE=${G_DEVICE:-cpu}
+      # CrossEncoder
+      - CE_LOCAL_MODEL_NAME=${CE_LOCAL_MODEL_NAME}
+      - CE_RERANKER_API_URL=${CE_RERANKER_API_URL:-http://llama-reranker:8084/v1}
+      - CE_DEVICE=${CE_DEVICE:-cpu}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_BASE=${OPENAI_API_BASE}
+    networks:
+      - rag_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+  web-api:
+    build:
+      context: ./web_api
+      dockerfile: Dockerfile
+    container_name: rag_web_api
+    ports:
+      - "8000:8000"
+    environment:
+      - RAG_CORE_URL=http://rag-core:8001 
+    depends_on:
+      - rag-core
+    networks:
+      - rag_network
+    restart: unless-stopped
+
+  frontend:
+      build:
+        context: ./frontend
+        dockerfile: Dockerfile
+      container_name: rag_frontend
+      ports:
+        - "80:80"
+      depends_on:
+        - web-api
+      networks:
+        - rag_network
+      restart: unless-stopped
+
+  #Profiles for llama.cpp
+
+  llama-generator:
+      image: ghcr.io/ggml-org/llama.cpp:server  # или :server для CPU
+      container_name: llama_generator
+      expose:
+        - "8082"
+      volumes:
+        - ./models:/app/models:ro
+      command: >
+        -m "/app/models/${G_LOCAL_MODEL_NAME}"
+        -c 16384
+        -b 512 
+        -ub 512 
+        -ngl 999 
+        -fa on 
+        -ctk q8_0 
+        -ctv q8_0 
+        --cont-batching 
+        --temp 0.0 
+        --host 0.0.0.0 
+        --port 8082
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+        interval: 30s
+        timeout: 10s
+        retries: 3
+        start_period: 60s
+      deploy:
+        resources:
+          reservations:
+            devices:
+              - driver: nvidia
+                count: 1
+                capabilities: [gpu]
+      networks:
+        - rag_network
+      restart: unless-stopped
+      profiles:
+        - local-generator  # Запускается только с --profile local-generator
+
+  llama-embeddings:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: llama_embeddings
+    expose:
+      - "8083"
+    volumes:
+      - ./models:/app/models:ro
+    command: >
+      -m "/app/models/${R_EMBEDDING_MODEL_NAME}" 
+      -c 2048 
+      -b 2048 
+      -ngl 999 
+      --embeddings 
+      --pooling mean 
+      --host 0.0.0.0 
+      --port 8083
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - rag_network
+    restart: unless-stopped
+    profiles:
+      - local-embeddings
+
+  llama-reranker:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: llama_reranker
+    expose:
+      - "8084"
+    volumes:
+      - ./models:/app/models:ro
+    command: >
+      -m "/app/models/${CE_LOCAL_MODEL_NAME}" 
+      -c 512 
+      -ngl 99 
+      --host 0.0.0.0 
+      --port 8084 
+      --rerank
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - rag_network
+    restart: unless-stopped
+    profiles:
+      - local-reranker
+
+networks:
+  rag_network:
+    driver: bridge
+
+volumes:
+  hf_cache:
+    name: rag_hf_cache
