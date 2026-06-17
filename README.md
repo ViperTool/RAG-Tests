@@ -1,4 +1,4 @@
-# RAG Assistant для КубГУ
+# RAG Assistant
 
 Интеллектуальный ассистент по базе знаний университета, построенный на архитектуре RAG (Retrieval Augmented Generation).
 
